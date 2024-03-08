@@ -18,14 +18,14 @@ const batchComparing = async (fullImage, thumbnailList) => {
 
   for (const batch of batches) {
     const potentialMatches = [];
-    for (const thumbnailKey of batch) {
+    for (const thumbnail of batch) {
       try {
         const { hashDistance, diff } = await compareImages(
           fullImage,
-          thumbnailKey
+          thumbnail.image
         );
         if (hashDistance < 0.16) {
-          console.log(`${fullImage.slice(-12)} might match ${thumbnailKey}`);
+          console.log(`${fullImage.slice(-12)} might match ${thumbnail.key}`);
           potentialMatches.push({ thumbnailKey, diff });
         }
         // const similarityScore = await compareImages(fullImage, thumbnailKey);
@@ -49,6 +49,11 @@ const batchComparing = async (fullImage, thumbnailList) => {
 };
 
 const batchMatching = async (imageList, thumbnailList) => {
+  const thumbnailImages = thumbnailList.map(async (key) => {
+    const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${key}.png`;
+    const image = await Jimp.read(thumbnailPath);
+    return { key, image };
+  });
   const batchSize = 1; // Adjust the batch size as needed
   const batches = [];
   for (let i = 0; i < imageList.length; i += batchSize) {
@@ -58,7 +63,7 @@ const batchMatching = async (imageList, thumbnailList) => {
   for (const batch of batches) {
     for (const fullImage of batch) {
       try {
-        const matches = await batchComparing(fullImage, thumbnailList);
+        const matches = await batchComparing(fullImage, thumbnailImages);
         if (matches?.length > 0) {
           matches.sort((a, b) => a.diff.percent - b.diff.percent);
           results.push({ imageUri: fullImage, key: matches[0].thumbnailKey });

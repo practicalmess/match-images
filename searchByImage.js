@@ -50,12 +50,12 @@ function quartile(arr, q) {
   }
 }
 
-export async function compareImages(fullImagePath, thumbnailKey) {
+export async function compareImages(fullImagePath, thumbnailImage) {
   if (typeof fullImagePath === "string" && fullImagePath.slice(-4) === ".jpg") {
-    const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${thumbnailKey}.png`;
+    // const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${thumbnailKey}.png`;
     try {
       const image1 = await Jimp.read(fullImagePath);
-      const thumbnailImage = await Jimp.read(thumbnailPath);
+      // const thumbnailImage = await Jimp.read(thumbnailPath);
       const scaledFullImage = image1.scale(0.05);
 
       // Perform pixel diff
