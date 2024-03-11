@@ -1,15 +1,17 @@
-import getRemoteSpreadsheet from "./remoteSpreadsheets.js";
+import { match } from "assert";
+import {
+  writeMatchesToRemoteSheet,
+  openSpreadsheet,
+} from "./remoteSpreadsheets.js";
 import { compareImages, getFullImages, getAllKeys } from "./searchByImage.js";
 import { parse } from "csv-parse";
+import Jimp from "jimp";
 import * as fs from "fs";
 import { finished } from "stream/promises";
 
-// writeToCSV(["Key", "Price", "Title", "Image URI", "Genre", "Tags", "Category"]);
-
-// async function writeToRemoteSheet(rowData, sheetId) {}
-
+// @return
 const batchComparing = async (fullImage, thumbnailList) => {
-  const batchSize = 5; // Adjust the batch size as needed
+  const batchSize = 3; // Adjust the batch size as needed
   const batches = [];
   const allPotentialMatches = [];
   for (let i = 0; i < thumbnailList.length; i += batchSize) {
@@ -22,81 +24,74 @@ const batchComparing = async (fullImage, thumbnailList) => {
       try {
         const { hashDistance, diff } = await compareImages(
           fullImage,
-          thumbnail.image
+          thumbnail
         );
-        if (hashDistance < 0.16) {
-          console.log(`${fullImage.slice(-12)} might match ${thumbnail.key}`);
-          potentialMatches.push({ thumbnailKey, diff });
+        if (hashDistance < 0.2) {
+          potentialMatches.push({
+            thumbnailKey: thumbnail.key,
+            diff,
+            hashDistance,
+          });
         }
-        // const similarityScore = await compareImages(fullImage, thumbnailKey);
-        // if (similarityScore < 0.16) {
-        //   console.log(
-        //     `${fullImage.slice(
-        //       -20
-        //     )} potential match: ${thumbnailKey} (${similarityScore})`
-        //   );
-        //   potentialMatches.push(thumbnailKey);
-
-        // scores.push({ key: thumbnail.slice(19, -4), similarityScore });
-        // }
       } catch (error) {
-        console.error(`Error processing image ${thumbnailKey}:`, error);
+        console.error(`Error processing image ${thumbnail.key}:`, error);
       }
-      allPotentialMatches.push(...potentialMatches);
     }
+    allPotentialMatches.push(...potentialMatches);
   }
   return allPotentialMatches;
 };
 
-const batchMatching = async (imageList, thumbnailList) => {
-  const thumbnailImages = thumbnailList.map(async (key) => {
-    const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${key}.png`;
-    const image = await Jimp.read(thumbnailPath);
-    return { key, image };
-  });
-  const batchSize = 1; // Adjust the batch size as needed
+const batchMatching = async (imageList, thumbnailImages) => {
+  console.log("Begin matching...");
+  const doc = await openSpreadsheet(
+    "1xqEAFXMvqQghKSVj8xtijrhc-MK6Qx1vvik_1H6ZhNE"
+  );
+
+  const batchSize = 3; // Adjust the batch size as needed
   const batches = [];
   for (let i = 0; i < imageList.length; i += batchSize) {
     batches.push(imageList.slice(i, i + batchSize));
   }
-  const results = [];
   for (const batch of batches) {
-    for (const fullImage of batch) {
-      try {
-        const matches = await batchComparing(fullImage, thumbnailImages);
-        if (matches?.length > 0) {
-          matches.sort((a, b) => a.diff.percent - b.diff.percent);
-          results.push({ imageUri: fullImage, key: matches[0].thumbnailKey });
+    for (const fullImagePath of batch) {
+      if (
+        typeof fullImagePath === "string" &&
+        fullImagePath.slice(-4) === ".jpg"
+      ) {
+        const fullImage = await Jimp.read(fullImagePath);
+        try {
+          console.log(`Matching ${fullImagePath.slice(-20)}...`);
+          const matches = await batchComparing(fullImage, thumbnailImages);
+
+          let sortedMatches = [];
+          if (matches?.length > 0) {
+            sortedMatches = matches
+              .sort((a, b) => a.diff.percent - b.diff.percent)
+              .map((match) => {
+                return { key: match.thumbnailKey, diff: match.diff.percent };
+              })
+              .filter((match) => match.diff < 0.00007);
+          }
+          const sortedMatchKeys = sortedMatches.map((match) => match.key);
+          console.log(sortedMatchKeys);
+          // await writeMatchesToRemoteSheet(doc, fullImagePath, sortedMatchKeys);
+        } catch (error) {
+          console.error(
+            `Error processing image ${fullImagePath.slice(-20)}:`,
+            error
+          );
+          return null; // or handle the error as needed
         }
-      } catch (error) {
-        console.error(`Error processing image ${fullImage.slice(-14)}:`, error);
-        return null; // or handle the error as needed
       }
     }
   }
-  return results;
 };
 
-async function matchImages(fullImages, keys, keyedInfo) {
-  const potentialMatches = await batchMatching(fullImages, keys.slice(1, 10));
-  console.log(potentialMatches);
-  // const matchingKey = await findMatch(image, keys);
-  // if (matchingKey) {
-  // const matchingRows = keyedInfo.filter((row) => row.key === matchingKey);
-  // if (matchingRows.length > 0) {
-  //   console.log(`Matching key:  ${matchingRows[0].key}`);
-  // }
-  // } else {
-  //   console.log("No match found");
-  // }
-
-  // const matchingKey = await findMatch(fullImages[0], keys);
-  // console.log(`Matching key: ${matchingKey}`);
-  // const matchingRow = info.filter((row) => row[0] === matchingKey);
-  // console.log(matchingRow);
+async function matchImages(fullImages, thumbnailList) {
+  const matchedImages = await batchMatching(fullImages, thumbnailList);
+  console.log("Matching complete!");
 }
-
-const { keys, keyedInfo } = await getAllKeys();
 
 const testKeys = [
   "northwest-passage-style-1",
@@ -108,24 +103,42 @@ const testKeys = [
   "bend-of-the-river-style-2",
   "bend-of-the-river-style-3",
   "seventh-heaven-style-1",
-  "the-house-across-the-bay-style-",
+  "the-house-across-the-bay-style-1",
   "the-living-daylights-style-1",
   "the-living-daylights-style-2",
+  "maciste-in-king-solomons-mines-style-1",
+  // "maciste-in-king-solomons-mines-style-2",
+  // "maciste-in-king-solomons-mines-style-3",
+  "maciste-gladiatore-di-sparta-style-1",
+  "smoky-canyon-style-1",
 ];
 
-const fullImages = await getFullImages();
-const slicedKeys = keys.slice(1, 10).push("the-living-daylights-style-2");
-const matches = await batchMatching(
+// const { keys } = await getAllKeys();
+const keys = testKeys;
+
+const batchSize = 5; // Adjust the batch size as needed
+const batches = [];
+for (let i = 0; i < keys.length; i += batchSize) {
+  batches.push(keys.slice(i, i + batchSize));
+}
+const allThumbnails = [];
+for (const batch of batches) {
+  const thumbnailImages = await Promise.all(
+    batch.map(async (key) => {
+      const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${key}.png`;
+      const image = await Jimp.read(thumbnailPath);
+      return { key, image };
+    })
+  );
+  allThumbnails.push(...thumbnailImages);
+}
+
+await matchImages(
   [
-    "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20230106_104304.jpg",
+    // "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20230101_101242.jpg",
+    "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20220427_200117.jpg",
   ],
-  ["true-confessions-style-1", ...testKeys]
+  allThumbnails
 );
-console.log(matches);
 
-// await matchImages();
-
-// const doc = await getRemoteSpreadsheet(
-//   "1afVxSIoKYs5m7-HH4ey2N-P2AOcgpD-rThSU9B82aZQ"
-// );
-// console.log(doc);
+// const fullImages = await getFullImages();

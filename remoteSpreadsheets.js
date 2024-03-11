@@ -33,29 +33,6 @@ const keys = {
 };
 
 /**
- * Start by acquiring a pre-authenticated oAuth2 client.
- */
-export default async function main(spreadSheetId) {
-  const oAuth2Client = await getAuthenticatedClient();
-
-  const doc = new GoogleSpreadsheet(spreadSheetId, oAuth2Client);
-  await doc.loadInfo(); // loads document properties and worksheets
-  return doc;
-  // Make a simple request to the People API using our pre-authenticated client. The `request()` method
-  // takes an GaxiosOptions object.  Visit https://github.com/JustinBeckwith/gaxios.
-  // const url = "https://people.googleapis.com/v1/people/me?personFields=names";
-  // const res = await oAuth2Client.request({ url });
-  // console.log(res.data);
-
-  // // After acquiring an access_token, you may want to check on the audience, expiration,
-  // // or original scopes requested.  You can do that with the `getTokenInfo` method.
-  // const tokenInfo = await oAuth2Client.getTokenInfo(
-  //   oAuth2Client.credentials.access_token
-  // );
-  // console.log(tokenInfo);
-}
-
-/**
  * Create a new OAuth2Client, and go through the OAuth2 content
  * workflow.  Return the full client to the callback.
  */
@@ -108,3 +85,93 @@ function getAuthenticatedClient() {
     // destroyer(server);
   });
 }
+
+/**
+ * Start by acquiring a pre-authenticated oAuth2 client.
+ */
+export async function openSpreadsheet(spreadSheetId) {
+  const oAuth2Client = await getAuthenticatedClient();
+
+  const doc = new GoogleSpreadsheet(spreadSheetId, oAuth2Client);
+  await doc.loadInfo(); // loads document properties and worksheets
+  return doc;
+}
+
+function findOutlier(arr) {
+  // Sort the array
+  arr.sort((a, b) => a.diff - b.diff);
+
+  // Calculate the first and third quartiles (Q1 and Q3)
+  const q1 = quartile(
+    arr.map((obj) => obj.diff),
+    0.25
+  );
+  const q3 = quartile(
+    arr.map((obj) => obj.diff),
+    0.75
+  );
+
+  // Calculate the interquartile range (IQR)
+  const iqr = q3 - q1;
+
+  // Define lower and upper bounds for outliers
+  const lowerBound = q1 - 1.5 * iqr;
+  const upperBound = q3 + 1.5 * iqr;
+
+  // Find outliers
+  const outliers = arr.filter((obj) => obj.diff < lowerBound);
+  if (outliers.length === 1) {
+    return outliers[0].key;
+  } else {
+    return null;
+  }
+}
+
+// Function to calculate a specific quartile of an array
+function quartile(arr, q) {
+  const pos = (arr.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (arr[base + 1] !== undefined) {
+    return arr[base] + rest * (arr[base + 1] - arr[base]);
+  } else {
+    return arr[base];
+  }
+}
+
+export async function writeMatchesToRemoteSheet(doc, imagePath, matches = []) {
+  if (matches.length > 1) {
+    const sheet = doc.sheetsByTitle["Unmatched"];
+    await sheet.addRow([imagePath, matches.join(", ")]);
+    console.log(`Multiple matches found for ${imagePath.slice(-20)}`);
+  } else if (matches.length === 0) {
+    const sheet = doc.sheetsByTitle["Unmatched"];
+    await sheet.addRow([imagePath, "No clear match"]);
+    console.log(`No match found for ${imagePath.slice(-20)}`);
+  } else if (matches.length === 1) {
+    const sheet = doc.sheetsByTitle["Sheet1"];
+    const rows = await sheet.getRows();
+    rows.forEach(async (row) => {
+      if (row.get("Key") === matches[0]) {
+        row.set("Image URI", imagePath);
+        await row.save();
+      }
+    });
+    console.log(`Matched ${imagePath.slice(-20)} to ${matches[0]}`);
+  }
+}
+
+// await writeMatchesToRemoteSheet(["pretend-key-1"]);
+
+// Make a simple request to the People API using our pre-authenticated client. The `request()` method
+// takes an GaxiosOptions object.  Visit https://github.com/JustinBeckwith/gaxios.
+// const url = "https://people.googleapis.com/v1/people/me?personFields=names";
+// const res = await oAuth2Client.request({ url });
+// console.log(res.data);
+
+// // After acquiring an access_token, you may want to check on the audience, expiration,
+// // or original scopes requested.  You can do that with the `getTokenInfo` method.
+// const tokenInfo = await oAuth2Client.getTokenInfo(
+//   oAuth2Client.credentials.access_token
+// );
+// console.log(tokenInfo);

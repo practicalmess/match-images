@@ -7,65 +7,18 @@ import {
 import * as fs from "fs";
 import { parse } from "csv-parse";
 import { finished } from "stream/promises";
+import { type } from "os";
 
-function findOutlier(arr) {
-  // Sort the array
-  arr.sort((a, b) => a.similarityScore - b.similarityScore);
+export async function compareImages(fullImage, thumbnail, fullImageUri) {
+  try {
+    const scaledFullImage = fullImage.scale(0.08);
 
-  // Calculate the first and third quartiles (Q1 and Q3)
-  const q1 = quartile(
-    arr.map((obj) => obj.similarityScore),
-    0.25
-  );
-  const q3 = quartile(
-    arr.map((obj) => obj.similarityScore),
-    0.75
-  );
-
-  // Calculate the interquartile range (IQR)
-  const iqr = q3 - q1;
-
-  // Define lower and upper bounds for outliers
-  const lowerBound = q1 - 3 * iqr;
-  const upperBound = q3 + 3 * iqr;
-
-  // Find outliers
-  const outliers = arr.filter((obj) => obj.similarityScore < lowerBound);
-  if (outliers.length > 0) {
-    return outliers[0].key;
-  } else {
-    return null;
-  }
-}
-
-// Function to calculate a specific quartile of an array
-function quartile(arr, q) {
-  const pos = (arr.length - 1) * q;
-  const base = Math.floor(pos);
-  const rest = pos - base;
-  if (arr[base + 1] !== undefined) {
-    return arr[base] + rest * (arr[base + 1] - arr[base]);
-  } else {
-    return arr[base];
-  }
-}
-
-export async function compareImages(fullImagePath, thumbnailImage) {
-  if (typeof fullImagePath === "string" && fullImagePath.slice(-4) === ".jpg") {
-    // const thumbnailPath = `https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/thumbnails/${thumbnailKey}.png`;
-    try {
-      const image1 = await Jimp.read(fullImagePath);
-      // const thumbnailImage = await Jimp.read(thumbnailPath);
-      const scaledFullImage = image1.scale(0.05);
-
-      // Perform pixel diff
-      const diff = Jimp.diff(thumbnailImage, scaledFullImage);
-      const hashDistance = Jimp.distance(thumbnailImage, scaledFullImage);
-      console.log(`${thumbnailKey}: ${hashDistance}`);
-      return { hashDistance, diff };
-    } catch (err) {
-      console.log(err);
-    }
+    // Perform pixel diff
+    const diff = Jimp.diff(thumbnail.image, scaledFullImage);
+    const hashDistance = Jimp.distance(thumbnail.image, scaledFullImage);
+    return { hashDistance, diff };
+  } catch (err) {
+    console.log(err);
   }
 }
 
@@ -94,14 +47,6 @@ async function findMatch(fullImage, thumbnails) {
     return null;
   }
 }
-
-// await findMatch(
-//   "https://the-last-poster-show.nyc3.digitaloceanspaces.com/image-storage/full-size/20220427_200117.jpg",
-//   [
-//     "maciste-in-king-solomons-mines-style-1",
-//     "maciste-gladiatore-di-sparta-style-1",
-//   ]
-// );
 
 const client = new S3Client({
   endpoint: "https://nyc3.digitaloceanspaces.com",
@@ -137,7 +82,7 @@ export const getFullImages = async () => {
           }
         })
       );
-      isTruncated = false;
+      isTruncated = IsTruncated;
 
       command.input.ContinuationToken = NextContinuationToken;
     }
