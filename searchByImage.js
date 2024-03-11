@@ -7,11 +7,10 @@ import {
 import * as fs from "fs";
 import { parse } from "csv-parse";
 import { finished } from "stream/promises";
-import { type } from "os";
 
 export async function compareImages(fullImage, thumbnail, fullImageUri) {
   try {
-    const scaledFullImage = fullImage.scale(0.08);
+    const scaledFullImage = fullImage.scale(0.07);
 
     // Perform pixel diff
     const diff = Jimp.diff(thumbnail.image, scaledFullImage);
@@ -61,7 +60,6 @@ export const getFullImages = async () => {
   const command = new ListObjectsV2Command({
     Bucket: "the-last-poster-show",
     Delimiter: ",",
-    // StartAfter: 1000,
     MaxKeys: 10,
   });
 
@@ -76,6 +74,8 @@ export const getFullImages = async () => {
         ...Contents.map((c, i) => {
           if (
             c.Key !== "image-storage/" &&
+            c.Key !== "image-storage" &&
+            c.Key !== "image-storage/full-size/" &&
             c.Key !== "image-storage/full-size"
           ) {
             return `https://the-last-poster-show.nyc3.digitaloceanspaces.com/${c.Key}`;

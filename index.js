@@ -1,15 +1,10 @@
-import { match } from "assert";
 import {
   writeMatchesToRemoteSheet,
   openSpreadsheet,
 } from "./remoteSpreadsheets.js";
 import { compareImages, getFullImages, getAllKeys } from "./searchByImage.js";
-import { parse } from "csv-parse";
 import Jimp from "jimp";
-import * as fs from "fs";
-import { finished } from "stream/promises";
 
-// @return
 const batchComparing = async (fullImage, thumbnailList) => {
   const batchSize = 3; // Adjust the batch size as needed
   const batches = [];
@@ -67,31 +62,20 @@ const batchMatching = async (imageList, thumbnailImages) => {
           let sortedMatches = [];
           if (matches?.length > 0) {
             sortedMatches = matches
-              .sort((a, b) => a.diff.percent - b.diff.percent)
-              .map((match) => {
-                return { key: match.thumbnailKey, diff: match.diff.percent };
-              })
-              .filter((match) => match.diff < 0.00007);
+              .filter((match) => match.diff.percent < 0.00007)
+              .sort((a, b) => a.diff.percent - b.diff.percent);
           }
-          const sortedMatchKeys = sortedMatches.map((match) => match.key);
-          console.log(sortedMatchKeys);
-          // await writeMatchesToRemoteSheet(doc, fullImagePath, sortedMatchKeys);
-        } catch (error) {
-          console.error(
-            `Error processing image ${fullImagePath.slice(-20)}:`,
-            error
+          const sortedMatchKeys = sortedMatches.map(
+            (match) => match.thumbnailKey
           );
-          return null; // or handle the error as needed
+          await writeMatchesToRemoteSheet(doc, fullImagePath, sortedMatchKeys);
+        } catch (error) {
+          await writeErrorToRemoteSheet(doc, fullImagePath);
         }
       }
     }
   }
 };
-
-async function matchImages(fullImages, thumbnailList) {
-  const matchedImages = await batchMatching(fullImages, thumbnailList);
-  console.log("Matching complete!");
-}
 
 const testKeys = [
   "northwest-passage-style-1",
@@ -113,8 +97,9 @@ const testKeys = [
   "smoky-canyon-style-1",
 ];
 
-// const { keys } = await getAllKeys();
-const keys = testKeys;
+const { keys } = await getAllKeys();
+const fullImagePaths = await getFullImages();
+// const keys = testKeys;
 
 const batchSize = 5; // Adjust the batch size as needed
 const batches = [];
@@ -133,12 +118,5 @@ for (const batch of batches) {
   allThumbnails.push(...thumbnailImages);
 }
 
-await matchImages(
-  [
-    // "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20230101_101242.jpg",
-    "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20220427_200117.jpg",
-  ],
-  allThumbnails
-);
-
-// const fullImages = await getFullImages();
+await batchMatching(fullImagePaths, allThumbnails);
+console.log("Matching complete!");
