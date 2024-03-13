@@ -257,9 +257,9 @@ const fullImagePaths = [
   "https://the-last-poster-show.nyc3.cdn.digitaloceanspaces.com/image-storage/full-size/20230217_154305.jpg",
 ];
 // const keys = testKeys;
-// const keys = getThumbnails();
+const keys = getThumbnails();
 // const keys = allKeys;
-const keys = someKeys;
+// const keys = someKeys;
 
 const batchSize = 50; // Adjust the batch size as needed
 const batches = [];
