@@ -8,14 +8,21 @@ import * as fs from "fs";
 import { parse } from "csv-parse";
 import { finished } from "stream/promises";
 
-export async function compareImages(fullImage, thumbnail, fullImageUri) {
+export async function compareImages(fullImage, thumbnail) {
   try {
-    const scaledFullImage = fullImage.scale(0.07);
+    const scaledFullImage = fullImage.scale(0.05);
+    const fullImageRatio = fullImage.bitmap.width / fullImage.bitmap.height;
 
-    // Perform pixel diff
-    const diff = Jimp.diff(thumbnail.image, scaledFullImage);
-    const hashDistance = Jimp.distance(thumbnail.image, scaledFullImage);
-    return { hashDistance, diff };
+    if (thumbnail) {
+      const thumbnailRatio =
+        thumbnail.image.bitmap.width / thumbnail.image.bitmap.height;
+      const ratioDiff = fullImageRatio / thumbnailRatio;
+      // Perform pixel diff
+      const diff = Jimp.diff(thumbnail.image, scaledFullImage);
+      const hashDistance = Jimp.distance(thumbnail.image, scaledFullImage);
+      console.log(thumbnail.image.bitmap.width);
+      return { hashDistance, diff, ratioDiff };
+    }
   } catch (err) {
     console.log(err);
   }
@@ -59,38 +66,90 @@ const client = new S3Client({
 export const getFullImages = async () => {
   const command = new ListObjectsV2Command({
     Bucket: "the-last-poster-show",
-    Delimiter: ",",
+    // Delimiter: "/",
     MaxKeys: 10,
+    // StartAfter: 1000,
+    Prefix: "image-storage/full-size/",
   });
+  const imageList = [];
 
   try {
     let isTruncated = true;
-    const imageList = [];
-
     while (isTruncated) {
       const { Contents, IsTruncated, NextContinuationToken } =
         await client.send(command);
       imageList.push(
         ...Contents.map((c, i) => {
-          if (
-            c.Key !== "image-storage/" &&
-            c.Key !== "image-storage" &&
-            c.Key !== "image-storage/full-size/" &&
-            c.Key !== "image-storage/full-size"
-          ) {
-            return `https://the-last-poster-show.nyc3.digitaloceanspaces.com/${c.Key}`;
-          }
+          return `https://the-last-poster-show.nyc3.digitaloceanspaces.com/${c.Key}`;
         })
       );
-      isTruncated = IsTruncated;
-
+      // isTruncated = IsTruncated;
+      isTruncated = false;
       command.input.ContinuationToken = NextContinuationToken;
     }
-    return imageList;
   } catch (err) {
     console.error(err);
   }
+  return imageList;
 };
+
+export const getThumbnails = async () => {
+  const command = new ListObjectsV2Command({
+    Bucket: "the-last-poster-show",
+    // Delimiter: "/",
+    MaxKeys: 100,
+    // StartAfter: 1000,
+    Prefix: "image-storage/thumbs/",
+  });
+  const imageList = [];
+
+  try {
+    let isTruncated = true;
+    while (isTruncated) {
+      const { Contents, IsTruncated, NextContinuationToken } =
+        await client.send(command);
+      imageList.push(
+        ...Contents.map((c) => {
+          return new String(c.Key.slice(21, -4)).toString();
+        })
+      );
+      isTruncated = IsTruncated;
+      // isTruncated = false;
+      command.input.ContinuationToken = NextContinuationToken;
+    }
+  } catch (err) {
+    console.error(err);
+  }
+
+  // Array of strings to write to the file
+  const stringsToWrite = imageList.filter((imagePath) => imagePath.length > 8);
+
+  // File path where you want to write the data
+  const filePath = "output.txt";
+
+  // Function to write the list of strings to a text file
+  function writeStringsToFile(strings, filePath) {
+    const quotedData = strings.map((string) => `"${string}",`);
+    // Join the strings with newline character to form lines
+    const data = quotedData.join("\n");
+
+    // Write data to the file
+    fs.writeFile(filePath, data, (err) => {
+      if (err) {
+        console.error("Error writing to file:", err);
+      } else {
+        console.log("Data written to file successfully.");
+      }
+    });
+  }
+
+  // Call the function to write the strings to the file
+  // writeStringsToFile(stringsToWrite, filePath);
+
+  return stringsToWrite;
+};
+
+// await getThumbnails();
 
 const parseRawInv = async () => {
   const records = [];

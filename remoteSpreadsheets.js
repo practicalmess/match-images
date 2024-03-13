@@ -140,9 +140,9 @@ function quartile(arr, q) {
 }
 
 export async function writeMatchesToRemoteSheet(doc, imagePath, matches = []) {
-  if (matches.length > 1) {
+  if (matches.length >= 1) {
     const sheet = doc.sheetsByTitle["Unmatched"];
-    await sheet.addRow([imagePath, matches.join(", ")]);
+    await sheet.addRow(["", imagePath, matches.join(", ")]);
     console.log(`Multiple matches found for ${imagePath.slice(-20)}`);
   } else if (matches.length === 0) {
     const sheet = doc.sheetsByTitle["Unmatched"];
@@ -151,12 +151,12 @@ export async function writeMatchesToRemoteSheet(doc, imagePath, matches = []) {
   } else if (matches.length === 1) {
     const sheet = doc.sheetsByTitle["Sheet1"];
     const rows = await sheet.getRows();
-    rows.forEach(async (row) => {
-      if (row.get("Key") === matches[0]) {
-        row.set("Image URI", imagePath);
-        await row.save();
-      }
-    });
+    // rows.forEach(async (row) => {
+    //   if (row.get("Key") === matches[0]) {
+    //     row.set("Image URI", imagePath);
+    //     await row.save();
+    //   }
+    // });
     console.log(`Matched ${imagePath.slice(-20)} to ${matches[0]}`);
   }
 }
