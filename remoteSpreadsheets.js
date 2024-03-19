@@ -18,16 +18,16 @@ import http from "http";
 import url from "url";
 import opn from "opn";
 import { GoogleSpreadsheet } from "google-spreadsheet";
+import API_KEYS from "./apiKeys";
 
 const keys = {
   installed: {
-    client_id:
-      "367089248760-pcjn62nks54jo5lfb7a5mi1084eb6c6b.apps.googleusercontent.com",
+    client_id: API_KEYS.CLIENT_ID,
     project_id: "the-last-poster-show",
     auth_uri: "https://accounts.google.com/o/oauth2/auth",
     token_uri: "https://oauth2.googleapis.com/token",
     auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-    client_secret: "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",
+    client_secret: API_KEYS.CLIENT_SECRET,
     redirect_uris: ["http://localhost:3000/oauth2callback"],
   },
 };
