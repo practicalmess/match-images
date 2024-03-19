@@ -13,6 +13,7 @@
     "@aws-sdk/client-s3": "^3.529.1",
     "@jimp/plugin-crop": "^0.22.12",
     "@techstark/opencv-js": "^4.9.0-release.2",
+    "axios": "^1.6.8",
     "csv-parse": "^5.5.5",
     "finished": "^1.2.2",
     "google-auth-library": "^9.6.3",
